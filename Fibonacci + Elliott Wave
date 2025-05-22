@@ -1,0 +1,70 @@
+//@version=5
+indicator("Fibonacci + Elliott Wave Helper", overlay=true)
+
+// ————— Input Parameters
+fibLevels = input.bool(true, "Show Fibonacci Levels")
+waveLabels = input.bool(true, "Show Elliott Wave Labels")
+lookback = input.int(30, "Swing Detection Lookback", minval=5)
+
+// ————— Detect Swings
+isHigh = ta.pivothigh(high, lookback, lookback)
+isLow = ta.pivotlow(low, lookback, lookback)
+
+var float swingHigh = na
+var float swingLow = na
+if isHigh
+    swingHigh := high[lookback]
+if isLow
+    swingLow := low[lookback]
+
+// ————— Store Swings (for plotting wave labels)
+var label[] waveLabelsUp = array.new_label()
+var label[] waveLabelsDown = array.new_label()
+if isHigh
+    lbl = label.new(x=bar_index[lookback], y=high[lookback], text="⬆", style=label.style_label_down, color=color.green, size=size.small)
+    array.push(waveLabelsUp, lbl)
+if isLow
+    lbl = label.new(x=bar_index[lookback], y=low[lookback], text="⬇", style=label.style_label_up, color=color.red, size=size.small)
+    array.push(waveLabelsDown, lbl)
+
+// ————— Plot Fibonacci from last swing low to high
+var line[] fibLines = array.new_line()
+var label[] fibLabels = array.new_label()
+
+if fibLevels and not na(swingHigh) and not na(swingLow)
+    // Clear previous lines
+    if array.size(fibLines) > 0
+        for i = 0 to array.size(fibLines) - 1
+            l = array.get(fibLines, i)
+            if not na(l)
+                line.delete(l)
+        array.clear(fibLines)
+
+    if array.size(fibLabels) > 0
+        for i = 0 to array.size(fibLabels) - 1
+            lbl = array.get(fibLabels, i)
+            if not na(lbl)
+                label.delete(lbl)
+        array.clear(fibLabels)
+
+    fibRatios = array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+    for r = 0 to array.size(fibRatios) - 1
+        ratio = array.get(fibRatios, r)
+        fibY = swingHigh - (swingHigh - swingLow) * ratio
+        fibL = line.new(bar_index - 50, fibY, bar_index, fibY, color=color.orange, style=line.style_dashed)
+        array.push(fibLines, fibL)
+        lbl = label.new(bar_index, fibY, text=str.tostring(ratio * 100, "#.##") + "%", style=label.style_label_left, color=color.orange, textcolor=color.black, size=size.tiny)
+        array.push(fibLabels, lbl)
+
+// ————— Wave Numbers (Manual Suggestion System)
+if waveLabels and array.size(waveLabelsUp) >= 5
+    for i = 0 to 4
+        wavePoint = array.get(waveLabelsUp, array.size(waveLabelsUp) - 1 - i)
+        label.set_text(wavePoint, "Wave " + str.tostring(5 - i))
+
+if waveLabels and array.size(waveLabelsDown) >= 3
+    waveABC = array.from("A", "B", "C")
+    for i = 0 to 2
+        corrPoint = array.get(waveLabelsDown, array.size(waveLabelsDown) - 1 - i)
+        waveLabel = array.get(waveABC, i)
+        label.set_text(corrPoint, "Wave " + waveLabel)
