@@ -1,0 +1,73 @@
+//@version=5
+strategy("Fib Strategy with RSI, Volume, S/R, Price Action", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// ——— Inputs
+lookback = input.int(20, "Swing Lookback", minval=5)
+useRSI = input.bool(true, "Use RSI confirmation")
+rsiLength = input.int(14, "RSI Length")
+rsiOverbought = input.int(60, "RSI Overbought")
+rsiOversold = input.int(40, "RSI Oversold")
+
+// ——— Detect Swings
+pivotHigh = ta.pivothigh(high, lookback, lookback)
+pivotLow = ta.pivotlow(low, lookback, lookback)
+
+var float swingHigh = na
+var float swingLow = na
+
+if pivotHigh
+    swingHigh := high[lookback]
+if pivotLow
+    swingLow := low[lookback]
+
+// ——— Fibonacci Levels
+fib50 = swingHigh - (swingHigh - swingLow) * 0.5
+fib618 = swingHigh - (swingHigh - swingLow) * 0.618
+fib786 = swingHigh - (swingHigh - swingLow) * 0.786
+
+// ——— Plot Fibonacci Levels
+plot(fib50, "Fib 50%", color=color.orange, linewidth=1, style=plot.style_line)
+plot(fib618, "Fib 61.8%", color=color.orange, linewidth=1, style=plot.style_line)
+plot(fib786, "Fib 78.6%", color=color.orange, linewidth=1, style=plot.style_line)
+
+// ——— Candlestick Color
+barcolor(close > open ? color.green : close < open ? color.red : na)
+
+// ——— RSI + Volume Conditions
+rsi = ta.rsi(close, rsiLength)
+avgVol = ta.sma(volume, 20)
+volHigh = volume > avgVol
+
+bullishCandle = close > open
+bearishCandle = close < open
+
+// ——— BUY Signal Logic
+buyZone = close >= fib618 and close <= fib50
+buySignal = buyZone and bullishCandle and volHigh and (not useRSI or rsi < rsiOversold)
+
+// ——— SELL Signal Logic
+sellZone = close <= fib618 and close >= fib50
+sellSignal = sellZone and bearishCandle and volHigh and (not useRSI or rsi > rsiOverbought)
+
+// ——— Plot BUY/SELL
+plotshape(buySignal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(sellSignal, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// ——— Execute Strategy Orders
+if buySignal
+    strategy.entry("Buy", strategy.long)
+
+if sellSignal
+    strategy.entry("Sell", strategy.short)
+
+// ——— Plot Support/Resistance from Pivot Points
+var line[] srLines = array.new_line()
+
+if pivotHigh
+    l = line.new(x1=bar_index[lookback], y1=high[lookback], x2=bar_index, y2=high[lookback], color=color.blue, style=line.style_dashed, width=1)
+    array.push(srLines, l)
+
+if pivotLow
+    l = line.new(x1=bar_index[lookback], y1=low[lookback], x2=bar_index, y2=low[lookback], color=color.blue, style=line.style_dashed, width=1)
+    array.push(srLines, l)
+
